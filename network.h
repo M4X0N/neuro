@@ -18,19 +18,18 @@ And methods, that return references to vectors of neurons, synapses and layers.
 #include"functions.h"
 
 
-#define LOG(msg) {std::cout << msg << std::endl;}
-
-/*
-//TODO переделай эту хуйню
-#define MSG(msg) {std::cout << msg << "\t";} 
-#define ENDMSG() {std::cout << std::endl;}
-
-//#ifdef DEBUG
-#define LOG(msg) {std::cout << msg << std::endl;}
+//////////////////////
+/*	LOGGING MACRO	*/
+//#ifdef _DEBUG
+#define LOG(msg) { \
+	std::cerr << msg << " "; \
+}
+#define ENDLOG { std::cerr <<  std::endl;}
+#define ENDLOG2 { std::cerr << "\n\n";}
 //#else
 //#define LOG(msg) {}
+//#define ENDLOG {}
 //#endif
-//////// */
 
 namespace neuro 
 {
@@ -41,6 +40,7 @@ namespace neuro
 	friend class Network;
 
 	public: 
+//	virtual const double getSignal() = 0;
 	void virtual refresh() = 0; 
 	};
 	
