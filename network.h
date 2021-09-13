@@ -13,7 +13,11 @@ And methods, that return references to vectors of neurons, synapses and layers.
 #include<string>
 #include<vector>
 #include<map>
-#include<list>
+#include<forward_list>
+#include<iterator>
+#include<algorithm>
+#include<memory>
+#include<exeption>
 
 #include"functions.h"
 
@@ -33,37 +37,40 @@ And methods, that return references to vectors of neurons, synapses and layers.
 
 namespace neuro 
 {
-	using iomap = std::map< std::string, double* >;
+	using iomap = std::map< std::string, float* >;
 
 	class Cell 
 	{ 
 	friend class Network;
-
 	public: 
-//	virtual const double getSignal() = 0;
-	void virtual refresh() = 0; 
+		const unsigned int 		id;
+
+		bool operator==(const Cell& rhs) { return rhs.id == this->id ; } ;
+
+		void virtual refresh() = 0; 
 	};
 	
 	class Neuron : public Cell
 	{
 	protected:      		
 		Activation* _function;
-		double _alpha;
-		double _bias;
-		double _axon;
-		double _dendron;
+		float _alpha;
+		float _bias;
+		float _axon;
+		float _dendron;
 		
 		friend class Network;
 		friend class Cell;
 	public:
-//	Useless now
-//		const Activation&	getFunction()	const	{ return _function; }
-//		const double& 		getAlpha() 		const	{ return _alpha; }
-//		const double& 		getBias() 		const	{ return _bias; }
-//		const double& 		getAxon() 		const	{ return _axon; }
-//		const double& 		getDendron()	const	{ return _dendron; }
+
+		const Activation&		getFunction()	const	{ return _function; }
+		const float& 			getAlpha() 		const	{ return _alpha; }
+		const float& 			getBias() 		const	{ return _bias; }
+		const float& 			getAxon() 		const	{ return _axon; }
+		const float& 			getDendron()	const	{ return _dendron; }
+
 		
-		explicit Neuron(Activation* func, double alpha, double bias);
+		explicit Neuron(int id, Activation* func, float alpha, float bias);
 
 		void refresh() override;
 	};
@@ -71,69 +78,74 @@ namespace neuro
 	class Synaps : public Cell
 	{
 	protected:
-		double* _axonptr;
-		double* _dendronptr;
-		double _weight;
-		
+		float*	_axonptr;		// Axon of neuron-transmitter
+		float*	_dendronptr;	// Dendron of neuron-reciever
+		float	_weight;		// Synaptic weight
+		float*	_feedbackptr	// Feedback from neuron-reciever, for hebbian learning 
+		float	_hebb; 			// Hebbian learning coefficient. To be used in future
+			
 	friend class Network;
 	friend class Cell;
 	public:
 		
-		// Not very useful
-		/*
-		const double&	getWeight()	const	{ return _weight; }
-		const double*	getAxon() 	const	{ return _axonptr; }
-		const double*	getDendron()	const	{ return _dendronptr; }
-		*/
+		const float&	getWeight()		const	{ return _weight; }
+		const float*	getAxon() 		const	{ return _axonptr; }
+		const float*	getDendron()	const	{ return _dendronptr; }
 	
-		explicit Synaps(double* axon, double* dendron, double weight);
+
+		explicit Synaps(int id, float* axon, float* dendron, float weight, float hebb);
 			
 		void refresh() override;
+		void hebb_learn( float global_hebb );
 	};
-	
-	using Neurons = std::list<Neuron>;
-	using Synapses = std::list<Synaps>;
-	using CellsTable = std::vector< std::vector< Cell* > >;
-	
+
+	using CellsTable = std::forward_list< std::forward_list<Cell> >;
+	using CellsIndex = std::map<int, std::pair< std::forward_list< Cell >*, Cell*>; 
+	// int - id of cell. Pointer to layer in list of layers and pointer to cell itself.
+
 	class Network
 	{
 	protected:
-		iomap _inputs;
-		iomap _outputs;
+	//iomaps can be shared between multiple networks or given individually
+		iomap* _inputs;
+		iomap* _outputs;
 		
-		Neurons _neurons;
-		Synapses _synapses;	
-		CellsTable _cellsTable;
-		
-		double* _takeAxon(int neuron);
-		double* _takeAxon(std::string input);
-		double* _takeDendron(int neuron);
-		double* _takeDendron(std::string output);
-
-		bool _addSynaps( auto in, auto out, double weight );
+		CellsTable _cellsTable; // Here all cells are stored
+		CellsIndex _cellsIndex; // Here addresses of layers and cells are stored - for fast search.
+ 
+		//Auxillary methods for synaptic connections
+		float* _takeAxon(int neuron);
+		float* _takeAxon(std::string input);
+		float* _takeDendron(int neuron);
+		float* _takeDendron(std::string output);
 		
 	public:	
-		const Neurons&      getNeurons() 	    { return _neurons; }
-		const Synapses&     getSynapses() 	    { return _synapses; }
 		const CellsTable&   getCellsTable()     { return _cellsTable; }
+		const LayerIndex&   getCellsIndex()     { return _cellsIndex; }
+
 	//REFRESHMENT
+
 		void tick();
-	//SYNTHESIS
-		//Add neuron to Layer and return it's index from _neurons. Will call addLayer if layer not exists.
-		unsigned int addNeuron( std::function<double(double,double)>* , double alpha, double bias, unsigned int layer );
-		
-		// Add synaps from axon to dendron, place it to layer. Returns if successful or not (A or D not found). If layer not exists - addLayer called.
-		bool addSynaps( std::string     axon,  std::string  dendron, double weight, unsigned int layer);
-		bool addSynaps( std::string     axon,  unsigned int dendron, double weight, unsigned int layer);
-		bool addSynaps( unsigned int    axon,  std::string  dendron, double weight, unsigned int layer);
-		bool addSynaps( unsigned int    axon,  unsigned int dendron, double weight, unsigned int layer);
-		// Add pseudo-synaps with weight 1 that sends state of axon to external variable. True if succeed
-		bool addProbe( unsigned int axon, double* output, unsigned int layer );
-		
-		// Add empty layerr. If layer exists - new will be unserter under. If not - net will be expanded. Returns new number of layers.
+
+	//NATIVE SYNTHESIS TODO
+	/* Basic methods for building the network. Not supposed to be used directly, but in external "synthetizers" e.g. NEAT genetic synthesis */
+
+		//Returns true if network contains cell with ID.
+		bool contains(unsigned int id);
+
+		//Finds layer, where cell with id is placed. Will throw error "" if cell not found.
+		unsigned int getLayer(unsigned int id);
+
+		// Add empty layer. If layer exists - new will be inserted under. If not - net will be expanded. Returns new number of layers.
 		unsigned int addLayer(unsigned int layer); 
-		
-	//CONSTRUCTOR
-		explicit Network(iomap inputs, iomap outputs);
+
+		//Add neuron to Layer. Will call addLayer if layer not exists. TODO check arguments
+		void addNeuron(unsigned int id, std::function<float(float,float)>* , float alpha, float bias, unsigned int layer );
+
+		//Connect two neurons, put synaps to layer, set weight and local hebbian learning rate (default 0)
+		void addSynaps(unsigned int id, auto axon, auto dendron, unsigned int layer, float weight, float hebb = 0); // TODO implement in .cpp
+
+	//CONSTRUCTOR TODO
+		explicit Network(iomap* inputs, iomap* outputs);
 	};	
 }
