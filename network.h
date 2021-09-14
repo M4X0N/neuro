@@ -9,17 +9,18 @@ addNeuron, addSynaps, addLayer
 And methods, that return references to vectors of neurons, synapses and layers.
 */
 
-#include<iostream>
-#include<string>
-#include<vector>
-#include<map>
-#include<forward_list>
-#include<iterator>
-#include<algorithm>
-#include<memory>
-#include<exeption>
+#include <iostream>
+#include <string>
+#include <vector>
+#include <map>
+#include <tuple>
+#include <forward_list>
+#include <iterator>
+#include <algorithm>
+#include <memory>
+#include <exception>
 
-#include"functions.h"
+#include "functions.h"
 
 
 //////////////////////
@@ -70,7 +71,7 @@ namespace neuro
 		const float& 			getDendron()	const	{ return _dendron; }
 
 		
-		explicit Neuron(int id, Activation* func, float alpha, float bias);
+		explicit Neuron(unsigned int id, Activation* func, float alpha, float bias);
 
 		void refresh() override;
 	};
@@ -81,7 +82,7 @@ namespace neuro
 		float*	_axonptr;		// Axon of neuron-transmitter
 		float*	_dendronptr;	// Dendron of neuron-reciever
 		float	_weight;		// Synaptic weight
-		float*	_feedbackptr	// Feedback from neuron-reciever, for hebbian learning 
+		float*	_feedbackptr;	// Feedback from neuron-reciever, for hebbian learning 
 		float	_hebb; 			// Hebbian learning coefficient. To be used in future
 			
 	friend class Network;
@@ -103,6 +104,9 @@ namespace neuro
 	using CellsIndex = std::map<int, std::pair< std::forward_list< Cell >*, Cell*>; 
 	// int - id of cell. Pointer to layer in list of layers and pointer to cell itself.
 
+	// Two pointers - for dendron and for feedback.
+	using DendronPair = std::tuple< float*, float* >;
+
 	class Network
 	{
 	protected:
@@ -116,8 +120,8 @@ namespace neuro
 		//Auxillary methods for synaptic connections
 		float* _takeAxon(int neuron);
 		float* _takeAxon(std::string input);
-		float* _takeDendron(int neuron);
-		float* _takeDendron(std::string output);
+		DendronPair _takeDendron(int neuron);
+		DendronPair _takeDendron(std::string output);
 		
 	public:	
 		const CellsTable&   getCellsTable()     { return _cellsTable; }
@@ -130,15 +134,16 @@ namespace neuro
 	//NATIVE SYNTHESIS TODO
 	/* Basic methods for building the network. Not supposed to be used directly, but in external "synthetizers" e.g. NEAT genetic synthesis */
 
-		//Returns true if network contains cell with ID.
-		bool contains(unsigned int id);
+		/* USELESS NOW
+		//Returns true if network contains cell with ID. If indexOnly false - search also in table and add to index if found.
+		bool contains(unsigned int id, bool indexOnly = true);
+		*/
 
-		//Finds layer, where cell with id is placed. Will throw error "" if cell not found.
+		//Finds layer, where cell with id is placed. Will throw error "no cell in index" if cell not found.
 		unsigned int getLayer(unsigned int id);
 
 		// Add empty layer. If layer exists - new will be inserted under. If not - net will be expanded. Returns new number of layers.
 		unsigned int addLayer(unsigned int layer); 
-
 		//Add neuron to Layer. Will call addLayer if layer not exists. TODO check arguments
 		void addNeuron(unsigned int id, std::function<float(float,float)>* , float alpha, float bias, unsigned int layer );
 
