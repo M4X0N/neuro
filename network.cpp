@@ -1,6 +1,9 @@
 #include "network.h"
 
-/* LOGGING SYSTEM */
+	////////////////////
+	/* LOGGING SYSTEM */
+	////////////////////
+
 #include "logging.h" 
 /*
 -DLOGLEVEL=level 1
@@ -10,7 +13,6 @@ WARNING     2
 ERROR       3
 CRITICAL    4
 */
-
 
 	//////////////////
 	/* class Neuron */
@@ -43,13 +45,27 @@ LOG(DEBUG) << "Neuron " << _id << " refresh called. Status:\n" << "D " << _dendr
 LOG(INFO) << "Neuron " << _id << " new Ax " << _axon;
 }
 
+const float* neuro::Neuron::_getAxonptr()
+{
+	return &_axon; 
+}
+
+const float* neuro::Neuron::_getDendronptr()
+{
+	return &_dendron;
+}
+
+const float* neuro::Neuron::_getFeedbackptr()
+{
+	return &_feedback;
+}
 
 	//////////////////
 	/* class Synaps */
 	//////////////////
 
 // Constructor
-neuro::Synaps::Synaps(unsigned int id, float* axon, float* dendron, float weight, float hebb)
+neuro::Synaps::Synaps(unsigned int id, float* axon, float* dendron, float* feedback, float weight, float hebb)
 {
 LOG(DEBUG) << "Synaps constructor called. id " << id << " A* " << axon << " D* " << dendron << " w " << weight << " h " << hebb;
 
@@ -57,6 +73,7 @@ LOG(DEBUG) << "Synaps constructor called. id " << id << " A* " << axon << " D* "
 	_axonptr = axon;
 	_dendronptr = dendron;
 	_weight = weight;
+	_feedbackptr = feedback;
 	_hebb = hebb;
 
 LOG(INFO) << "Synaps " << _id << " constructed";
@@ -82,6 +99,21 @@ LOG(DEBUG) << "Synaps " << _id << "hebb called. w " << _weight << " ghebb " << g
 LOG(INFO) << "Synaps " << _id << " weight hebbed to " << _weight;
 }
 
+// ( TODO ) Это заглушка, возвращающая указатели на A и D соединяемых нейронов. В будущем - имплементировать собственные А и Д с ФБ внутри синапса для реализации "синаптического умножения".
+const float* neuro::Synaps::_getAxonptr()
+{
+	return _axonptr; 
+}
+
+const float* neuro::Synaps::_getDendronptr()
+{
+	return _dendronptr;
+}
+
+const float* neuro::Synaps::_getFeedbackptr()
+{
+	return _feedbackptr;
+}
 
 	///////////////////
 	/* class Network */
@@ -121,43 +153,24 @@ LOG(DEBUG) << "Network Hebbian Learning called with gHebb " << global_hebb;
 LOG(DEBUG) << "Network Hebb finished";
 } 
 
-	/* Native level network building */
+	/* NATIVE SYNTHESIS */
 
-/* THIS METHOD IS USELESS NOW
-// Check by int/string presence of cell in index. Index Only - if false, it will search in table if not found in index.
-bool neuro::Network::contains(unsigned int id, bool indexOnly)
-{
-LOG(DEBUG) << "Network contains? is called for ID: " << id;
 
-	auto id = _cellsIndex.find(id);
-	if( it != _cellsIndex.end() ) {
-LOG(INFO) << "Cell ID " << id << "  found in index";
-	return true;
-	} else {
-LOG(INFO) << "Cell ID " << id << " not found in index";
-		if( indexOnly ) {
-			return false;
-		} else {
-LOG(INFO) << "Cell ID " << id << " searching in _cellsTable";
+CellsLayer& neuro::Network::_onLayer( int layer )
+{	
+	auto it = _cellsTable.begin();
+	for( int i = 0; i != layer; ++i ) {
+		if( it == _cellsTable.end() ) {
 
-			for( auto&& lit l : _cellsTable ) {
-				auto cit = l.begin();
-				while ( cit != l.end() ) {
-					if( *cit.id = id ) {
-LOG(INFO) << "Cell ID " << id << " found in table. Adding to index";
-						_cellsIndex[id] = &*lit;
-						return true;
-					} else ++cit;
-				}
-			}
-LOG(INFO) << "Cell ID " << id << " not found in table";
-		return false;
+LOG(DEBUG) << "No layer " << layer << " in network. Calling addLayer(" << i << ")";
+			addLayer(i);
+			break;
 		}
 	}
-}
-*/
 
-// Layer Finder
+	return *it;
+}
+
 unsigned int neuro::Network::getLayer(unsigned int id)
 {	
 LOG(DEBUG) << "Network getLayer is called for ID: " << id;
@@ -171,60 +184,51 @@ LOG(DEBUG) << "Cell with ID " << id << " is found on layer " << layer;
 	return layer;
 }
 
-// Adding Layer
 unsigned int neuro::Network::addLayer(int layer)
 {
-	unsigned int layern = std::distance( _cellsTable.begin(), _cellsTable.end() );
+LOG(DEBUG) << "addLayer called, l " << layer;
+
 	if( layer <= 0 ) {
 		_cellsTable.emplace_front();
 	} else {
-		if ( layer <= layern ) {
-			auto it = _cellsTable.begin();
-			std::advance( it, layern );
-		} else {
-			auto it = _cellsTable.end();
-		}
+
+		auto it = _cellsTable.begin();
+		int i;
+		for(i = 0; i != layer || it != _cellsTable.end(); ++i) ++it;
+
+LOG(DEBUG) << "addLayer insertion to layer " << i;
+		_cellsTable.emplace_after(it);
+
+		for(; it != _cellsTable.end(); i++ ) ++it;
+
 	}
-	_cellsTable.emplace_after(it);
-	return ++layern;
+LOG(INFO) << "Layer " << layer << " inserted. Last layer: " << i; // TODO Эмпирически проверить корректность возвратов
+	return i;
 }
 
-// Adding Neuron
-void neuro::Network::addNeuron(unsigned int id, std::function<float(float,float)>* , float alpha, float bias, unsigned int layer )
+void neuro::Network::addNeuron(unsigned int id, unsigned int layer, std::function<float(float,float)>* func , float alpha = 1, float bias = 0)
 {
-	// TODO
+LOG(DEBUG) << "addNeuron called to layer " << layer << " id " << id << " a " << alpha << " b " << bias;
+
+	Neuron neuron = Neuron(id, func, alpha, bias);	// TODO Вообще не уверен, что это будет работать
+	_onLayer( layer ).insert_after( *it.begin(), neuron );
+
+LOG(INFO) << "Neuron id " << id << " inserted";
 }
 
-// Adding synaps
-	// int neuron - ID of neuron
-	// string - name of input or output
-void neuro::Network::addSynaps(auto axon, auto dendron,unsigned int layer, float weight, float hebb = 0)
+// Adding synaps TODO TODO TODO
+void neuro::Network::addSynaps(unsigned int id, unsigned int layer, auto axon, auto dendron, float weight, float hebb = 0)
 {
-	
-	{
-		if( std::distance( _cellsTable.begin(), _cellsTable.end() ) < layer ) {
-			addLayer( layer );
-			layer = std::distance( _cellsTable.begin(), _cellsTable.end();
-		}
-	}
-	
-	_cellsTable[layer].
-	Synaps( /*TODO ID*/, _takeAxon(axon), _takeDendron(dendron), weight, hebb )
-}
+LOG(DEBUG) << "addSynaps called to layer " << layer << " id " << id << " A " << axon << " D " << dendron << " w " << weight << " h " << hebb;
 
+		// TODO
+
+	Synaps synaps = Synaps( id, axonptr, dendronptr, feedbackptr, weight, hebb );
+	_onLayer( layer ).insert_after( *it.begin(), synaps ); // TODO TODO И тут ессесно тоже хз, будет ли работать
+}
+ 
 // Auxillary functions for adding synaps
-float* neuro::Network::_takeAxon(int neuron) {
-	// TODO
-}
-float* neuro::Network::_takeAxon(std::string input)
-{
-	// TODO
-}
-DendronPair neuro::Network::_takeDendron(int neuron);
-{
-	// TODO и с туплом разберись. Тупл с двумя float*
-}
-DendronPair neuro::Network::_takeDendron(std::string output);
-{
-	// TODO
-}
+
+
+
+

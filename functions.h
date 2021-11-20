@@ -13,10 +13,10 @@ namespace neuro {
 	std::map< std::string, Activation > activations = 
 	{
 	{ "linear", 	[](float x, float a) { return x*a; } }, 
-	{ "tanh",		[](float x, float a) { return activations["sigmoid"](x,a)*2-1 ;} }, 
 	{ "sigmoid", 	[](float x, float a) { return 1/(1+exp(-x*a)); } },
+	{ "tanh",		[](float x, float a) { return activations["sigmoid"](x,a)*2-1 ;} }, 
 // TODO - gauss is not working
-	{ "gauss",		[](float x, float a) { return ( 1/(exp(a)*sqrt(std::numbers::pi*2)) )*exp( -0.5*std::pow( x/exp(a), 2 ) ); 	} 	}, //Sigma is exp of parameter - in order to prevent div by zero.
+	{ "gauss",		[](float x, float a) { return ( 1/(exp(a)*sqrt(std::numbers::pi*2)) )*exp( -0.5*std::pow( x/exp(a), 2 ) ); 	} 	}, //Sigma is exp of parameter - to prevent div by zero.
 	
 // Logistic sigmoid
 // Arctg
